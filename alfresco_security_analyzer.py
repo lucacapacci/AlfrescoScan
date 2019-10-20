@@ -5,6 +5,29 @@ import json
 import argparse
 
 
+default_credentials = [{"username": "guest", "password": "guest"},
+                       {"username": "admin", "password": "admin"}]
+
+url_subfixes = ["alfresco/", 
+                "alfresco/faces/jsp/dashboards/container.jsp",
+                "alfresco/page/index", 
+                "alfresco/page/installer", 
+                "alfresco/s/index", 
+                "alfresco/webdav",
+                "share/service/", 
+                "alfresco/service/index", 
+                "alfresco/service/installer",
+                "share/page/index",
+                "share/page/installer"
+                "share/service/installer",
+                "share/page/user/admin/dashboard"]
+
+sections = {"Dashboard": [">my alfresco<", ">alfresco &raquo; user dashboard<"],
+            "Web Scripts Home": ["web scripts home"],
+            "Web Scripts Installer": ["web scripts installer"],
+            "WebDav": ["directory listing for"],
+            "Welcome Page": ["welcome to alfresco"]}
+
 
 def get_alfresco_version_from_xml(target_url):
     response = requests.get("{0}alfresco/service/api/login?u=invaliduser&pw=blablabla".format(target_url), auth=HTTPBasicAuth('guest', 'guest'))
@@ -33,59 +56,26 @@ def get_spring_webscripts_version(target_url):
     return version.group(1)
 
 
-def check_public_urls(target_url, url_subfixes, credentials, marker):
-    results = dict()
+def check_public_urls(target_url):
+    results = list()
     for url_subfix in url_subfixes:
         full_url = '{0}{1}'.format(target_url, url_subfix)
         response = requests.get(full_url)
-        if response.status_code != 401:
-            if marker in response.text.lower():
-                results[full_url] = None
-        else:
-            for credentials_set in credentials:
-                response = requests.get(full_url, auth=HTTPBasicAuth(credentials_set["username"], credentials_set["password"]))
-                if response.status_code != 401:
+        if response.status_code < 400:
+            for name, markers in sections.items():
+                for marker in markers:
                     if marker in response.text.lower():
-                        results[full_url] = credentials_set
+                        yield {"name": name, "url": full_url, "auth": None}
                         break
-    return results
-
-
-def check_public_index_of_web_scripts(target_url):
-    return check_public_urls(target_url=target_url, 
-                             url_subfixes=["alfresco/", "alfresco/service/index", "alfresco/page/index", "share/service/", "share/page/index"], 
-                             credentials=[{"username": "guest", "password": "guest"}], 
-                             marker="web scripts home")
-
-
-def check_public_web_scripts_installer(target_url):
-    return check_public_urls(target_url=target_url, 
-                             url_subfixes=["alfresco/service/installer", "alfresco/page/installer", "share/service/installer", "share/page/installer"], 
-                             credentials=[{"username": "guest", "password": "guest"}], 
-                             marker="web scripts installer")
-
-def check_welcome_page(target_url):
-    return check_public_urls(target_url=target_url, 
-                             url_subfixes=["alfresco/"], 
-                             credentials=[{"username": "guest", "password": "guest"}], 
-                             marker="welcome to alfresco")
-
-def check_dashboard(target_url):
-    return check_public_urls(target_url=target_url, 
-                             url_subfixes=["alfresco/faces/jsp/dashboards/container.jsp"], 
-                             credentials=[{"username": "guest", "password": "guest"}], 
-                             marker='name="dashboard"')
-
-def print_exposed_paths_result(results, resource_name):
-    if len(results) == 0:
-        print("{0} isn't publicly available".format(resource_name))
-    else:
-        for current_url, current_credentials in results.items():
-            if current_credentials is None:
-                print("{0} is publicly available at {1} without authentication".format(resource_name, current_url))
-            else:
-                print("{0} is publicly available at {1} with username '{2}' and password '{3}'".format(resource_name, current_url, current_credentials["username"], current_credentials["password"]))
-
+        else:
+            for credentials_set in default_credentials:
+                response = requests.get(full_url, auth=HTTPBasicAuth(credentials_set["username"], credentials_set["password"]))
+                if response.status_code < 400:
+                    for name, markers in sections.items():
+                        for marker in markers:
+                            if marker in response.text.lower():
+                                yield {"name": name, "url": full_url, "auth": credentials_set}
+                                break
 
 def main(target_url):
     if target_url.endswith("/") is False:
@@ -143,17 +133,16 @@ def main(target_url):
 
     print("======== EXPOSED RESOURCES ========")
 
-    public_index_of_web_scripts = check_public_index_of_web_scripts(target_url)
-    print_exposed_paths_result(public_index_of_web_scripts, "Web Scripts Home")
+    found_resources = False    
+    for result in check_public_urls(target_url):
+        found_resources = True
+        if result["auth"] is None:
+            print("{0} is publicly available at {1} without authentication".format(result["name"], result["url"]))
+        else:
+            print("{0} is publicly available at {1} with username '{2}' and password '{3}'".format(result["name"], result["url"], result["auth"]["username"], result["auth"]["password"]))
 
-    public_web_scripts_installer = check_public_web_scripts_installer(target_url)
-    print_exposed_paths_result(public_web_scripts_installer, "Web Scripts Installer")
-    
-    public_welcome_page = check_welcome_page(target_url)
-    print_exposed_paths_result(public_welcome_page, "Welcome page")
-    
-    public_dashboard = check_dashboard(target_url)
-    print_exposed_paths_result(public_dashboard, "Dashboard")
+    if found_resources is False:
+        print("Great! No publicly exposed resources were detected")
     
 
 print(''' _______  _        _______  _______  _______  _______  _______  _______  _______  _______  _______  _       
