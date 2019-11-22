@@ -39,7 +39,15 @@ form_url_subfixes = [{"name": "Dashboard",
                       "success": "/share/page/user/admin/dashboard", 
                       "failure": "/share/page/user/admin/dashboard?error=true"}]
 
-sections = {"Dashboard": [">my alfresco<", ">alfresco &raquo; user dashboard<"],
+sections = {"Dashboard": [">my alfresco<", 
+                          ">mein alfresco<", 
+                          ">mi alfresco<",
+                          ">mon alfresco<",
+                          ">il mio alfresco<",
+                          ">min alfresco<",
+                          ">mijn alfresco<",
+                          ">o meu alfresco<",
+                          ">alfresco &raquo; user dashboard<"],
             "Error pages": [" error</title>"],
             "Solr4 Dashboard": [">solr admin<"],
             "Web Scripts Home": ["web scripts home"],
@@ -48,20 +56,20 @@ sections = {"Dashboard": [">my alfresco<", ">alfresco &raquo; user dashboard<"],
             "Welcome Page": ["welcome to alfresco"]}
 
 
-def get_alfresco_version_from_xml(target_url):
-    response = requests.get("{0}alfresco/service/api/login?u=invaliduser&pw=blablabla".format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=False)
+def get_alfresco_version_from_xml(target_url, verify):
+    response = requests.get("{0}alfresco/service/api/login?u=invaliduser&pw=blablabla".format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
     version = re.search(r'<server>(.*)<\/server>', response.text, re.IGNORECASE)
     return version.group(1)
 
 
-def get_alfresco_version_from_json(target_url):
-    response = requests.get("{0}alfresco/api/-default-/public/cmis/versions/1.1/atom".format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=False)
+def get_alfresco_version_from_json(target_url, verify):
+    response = requests.get("{0}alfresco/api/-default-/public/cmis/versions/1.1/atom".format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
     version = json.loads(response.text)["server"]
     return version
 
 
-def get_tomcat_jboss_version(target_url):
-    response = requests.get('{0}alfresco/webdav/asfdsad'.format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=False)
+def get_tomcat_jboss_version(target_url, verify):
+    response = requests.get('{0}alfresco/webdav/asfdsad'.format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
     title = re.search(r'<title>(.*)<\/title>', response.text, re.IGNORECASE)
     title = title.group(1)
     if " - Error report" in title:
@@ -69,17 +77,17 @@ def get_tomcat_jboss_version(target_url):
     return title
 
 
-def get_spring_webscripts_version(target_url):
-    response = requests.get('{0}share/page/script/'.format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=False)
+def get_spring_webscripts_version(target_url, verify):
+    response = requests.get('{0}share/page/script/'.format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
     version = re.search(r'<tr><td><b>Server<\/b>:<\/td><td>(.*)<\/td>', response.text, re.IGNORECASE)
     return version.group(1)
 
 
-def check_public_urls(target_url):
+def check_public_urls(target_url, verify):
     for url_subfix in url_subfixes:
         full_url = '{0}{1}'.format(target_url, url_subfix)
         try:
-            response = requests.get(full_url, verify=False)
+            response = requests.get(full_url, verify=verify)
         except requests.exceptions.ConnectionError as e:
             continue
         if (response.status_code < 400) or (url_subfix == "share/page/script/" and response.status_code >= 500):
@@ -102,13 +110,13 @@ def check_public_urls(target_url):
                                 break
 
 
-def check_certs(target_url):
+def check_certs(target_url, verify):
     from requests_pkcs12 import get
     for url_subfix in cert_url_subfixes:
         full_url = '{0}{1}'.format(target_url, url_subfix)
         for cert in certs:
             try:
-                response = get(full_url, pkcs12_filename=os.path.join(sys.path[0], cert), pkcs12_password='alfresco', verify=False)
+                response = get(full_url, pkcs12_filename=os.path.join(sys.path[0], cert), pkcs12_password='alfresco', verify=verify)
             except requests.exceptions.ConnectionError as e:
                 continue
             if response.status_code < 400:
@@ -120,7 +128,7 @@ def check_certs(target_url):
 
 
 
-def check_forms(target_url):
+def check_forms(target_url, verify):
     for url_subfix in form_url_subfixes:
         full_url = '{0}{1}'.format(target_url, url_subfix["form"])
         success_url = '{0}{1}'.format(target_url, url_subfix["failure"][:1])
@@ -130,7 +138,7 @@ def check_forms(target_url):
                        "username": credentials_set["username"],
                        "password": credentials_set["password"]}
             try:
-                response = requests.post(full_url, data=payload, verify=False, allow_redirects=False)
+                response = requests.post(full_url, data=payload, verify=verify, allow_redirects=False)
             except requests.exceptions.ConnectionError as e:
                 continue
             if response.status_code == 302 and "Location" in response.headers:
@@ -138,19 +146,21 @@ def check_forms(target_url):
                     yield {"name": url_subfix["name"], "url": success_url, "auth": credentials_set}
 
 
-def main(target_url):
+def main(target_url, insecure):
     if target_url.endswith("/") is False:
         target_url = "{0}/".format(target_url)
+
+    verify = not insecure
 
     print("======== ALFRESCO VERSION ========")
 
     try:
-        alfresco_version = get_alfresco_version_from_xml(target_url)
+        alfresco_version = get_alfresco_version_from_xml(target_url, verify)
     except Exception as e:
         alfresco_version = None
     if alfresco_version is None:
         try:
-            alfresco_version = get_alfresco_version_from_json(target_url)
+            alfresco_version = get_alfresco_version_from_json(target_url, verify)
         except Exception as e:
             alfresco_version = None
     if alfresco_version is not None:
@@ -162,7 +172,7 @@ def main(target_url):
         print("Can't detect Alfresco version")
 
     try:
-        tomcat_jboss_version = get_tomcat_jboss_version(target_url)
+        tomcat_jboss_version = get_tomcat_jboss_version(target_url, verify)
     except Exception as e:
             tomcat_jboss_version = None
     if tomcat_jboss_version is not None:
@@ -184,7 +194,7 @@ def main(target_url):
     print("======== SPRING WEBSCRIPTS VERSION ========")
 
     try:
-        spring_webscripts_version = get_spring_webscripts_version(target_url)
+        spring_webscripts_version = get_spring_webscripts_version(target_url, verify)
     except Exception as e:
             spring_webscripts_version = None
     if spring_webscripts_version is not None:
@@ -195,7 +205,7 @@ def main(target_url):
     print("======== EXPOSED RESOURCES ========")
 
     found_resources = False    
-    for result in check_public_urls(target_url):
+    for result in check_public_urls(target_url, verify):
         found_resources = True
         if result["auth"] is None:
             if result["name"] == "Error pages":
@@ -208,11 +218,11 @@ def main(target_url):
             else:
                 print("{0} is publicly available at {1} with BasicAuth username '{2}' and password '{3}'".format(result["name"], result["url"], result["auth"]["username"], result["auth"]["password"]))
 
-    for result in check_forms(target_url):
+    for result in check_forms(target_url, verify):
         found_resources = True
         print("{0} is publicly available at {1} with form username '{2}' and password '{3}'".format(result["name"], result["url"], result["auth"]["username"], result["auth"]["password"]))
 
-    for result in check_certs(target_url):
+    for result in check_certs(target_url, verify):
         found_resources = True
         print("{0} is publicly available at {1} with publicly available PKCS#12 certificate '{2}'. You can find the certificate in AlfrescoScan directory, with password 'alfresco'".format(result["name"], result["url"], result["certificate"]))
 
@@ -231,16 +241,19 @@ print(''' _______  _        _______  _______  _______  _______  _______  _______
                                                                                                              '''.format(VERSION))
 
 parser = argparse.ArgumentParser(description="AlfrescoScan, an automated Alfresco security analyzer")
-parser.add_argument("-v", "--version", help="show program version", action="store_true")
-parser.add_argument("-u", "--url", help="url to scan")
+parser.add_argument("-v", "--version", help="Show program version", action="store_true")
+parser.add_argument("-i", "--insecure", help="Ignore security issues with HTTPS connections", action="store_true")
+parser.add_argument("-u", "--url", help="URL to scan")
 args = parser.parse_args()
 
 if args.version:
     print("AlfrescoScan v{0}".format(VERSION))
 
+print(args.insecure)
+
 if args.url:
     print("Scanning '{0}'...".format(args.url))
-    main(target_url=args.url)
+    main(target_url=args.url, insecure=args.insecure)
 
 if not args.version and not args.url:
     parser.print_help()
