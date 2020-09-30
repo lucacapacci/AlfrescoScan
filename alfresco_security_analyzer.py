@@ -16,6 +16,9 @@ default_credentials = [{"username": "guest", "password": "guest"},
 certs = ["browser.p12"]
 
 url_subfixes = ["alfresco/", 
+                "alfresco/api/-",
+                "alfresco/cmisws/cmis",
+                "alfresco/cmisws/cmis?wsdl",
                 "alfresco/faces/jsp/dashboards/container.jsp",
                 "alfresco/page/index", 
                 "alfresco/page/installer", 
@@ -39,7 +42,8 @@ form_url_subfixes = [{"name": "Dashboard",
                       "success": "/share/page/user/admin/dashboard", 
                       "failure": "/share/page/user/admin/dashboard?error=true"}]
 
-sections = {"Dashboard": [">my alfresco<", 
+sections = {"CMIS Web Services": ["cmis wsdl for all services", "xmlns:cmis"],
+            "Dashboard": [">my alfresco<", 
                           ">mein alfresco<", 
                           ">mi alfresco<",
                           ">mon alfresco<",
@@ -48,7 +52,7 @@ sections = {"Dashboard": [">my alfresco<",
                           ">mijn alfresco<",
                           ">o meu alfresco<",
                           ">alfresco &raquo; user dashboard<"],
-            "Error pages": [" error</title>"],
+            "Detailed error pages": [" error</title>", "exception report"],
             "Solr4 Dashboard": [">solr admin<"],
             "Web Scripts Home": ["web scripts home"],
             "Web Scripts Installer": ["web scripts installer"],
@@ -72,9 +76,15 @@ def get_tomcat_jboss_version(target_url, verify):
     response = requests.get('{0}alfresco/webdav/asfdsad'.format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
     title = re.search(r'<title>(.*)<\/title>', response.text, re.IGNORECASE)
     title = title.group(1)
+    found_string = None
     if " - Error report" in title:
-        title = title.replace(" - Error report", "").strip()
-    return title
+        found_string = title.replace(" - Error report", "").strip()
+    if found_string is None:
+        h3 = re.search(r'<h3>(.*)<\/h3>', response.text, re.IGNORECASE)
+        h3 = h3.group(1)
+        if "Tomcat" in h3:
+            found_string = h3
+    return found_string
 
 
 def get_spring_webscripts_version(target_url, verify):
@@ -90,7 +100,8 @@ def check_public_urls(target_url, verify):
             response = requests.get(full_url, verify=verify)
         except requests.exceptions.ConnectionError as e:
             continue
-        if (response.status_code < 400) or (url_subfix == "share/page/script/" and response.status_code >= 500):
+        if ((response.status_code < 400) or 
+            (url_subfix in ["alfresco/api/-", "share/page/script/"] and response.status_code >= 500)):
             for name, markers in sections.items():
                 for marker in markers:
                     if marker in response.text.lower():
@@ -102,7 +113,8 @@ def check_public_urls(target_url, verify):
                     response = requests.get(full_url, auth=HTTPBasicAuth(credentials_set["username"], credentials_set["password"]), verify=False)
                 except requests.exceptions.ConnectionError as e:
                     continue
-                if (response.status_code < 400) or (url_subfix == "share/page/script/" and response.status_code >= 500):
+                if ((response.status_code < 400) or 
+                    (url_subfix in ["alfresco/api/-", "share/page/script/"] and response.status_code >= 500)):
                     for name, markers in sections.items():
                         for marker in markers:
                             if marker in response.text.lower():
@@ -248,8 +260,6 @@ args = parser.parse_args()
 
 if args.version:
     print("AlfrescoScan v{0}".format(VERSION))
-
-print(args.insecure)
 
 if args.url:
     print("Scanning '{0}'...".format(args.url))
