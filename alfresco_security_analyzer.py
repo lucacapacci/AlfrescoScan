@@ -62,6 +62,8 @@ sections = {"CMIS Web Services": ["cmis wsdl for all services", "xmlns:cmis"],
 
 def get_alfresco_version_from_xml(target_url, verify):
     response = requests.get("{0}alfresco/service/api/login?u=invaliduser&pw=blablabla".format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
+    if response.status_code == 401:
+        response = requests.get("{0}alfresco/service/api/login?u=invaliduser&pw=blablabla".format(target_url), verify=verify)
     version = re.search(r'<server>(.*)<\/server>', response.text, re.IGNORECASE)
     return version.group(1)
 
@@ -74,6 +76,8 @@ def get_alfresco_version_from_json(target_url, verify):
 
 def get_tomcat_jboss_version(target_url, verify):
     response = requests.get('{0}alfresco/webdav/asfdsad'.format(target_url), auth=HTTPBasicAuth('guest', 'guest'), verify=verify)
+    if response.status_code == 401:
+        response = requests.get('{0}alfresco/api/-'.format(target_url), verify=verify)
     title = re.search(r'<title>(.*)<\/title>', response.text, re.IGNORECASE)
     title = title.group(1)
     found_string = None
