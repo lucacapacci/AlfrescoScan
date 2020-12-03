@@ -16,8 +16,8 @@ AlfrescoScan, an automated Alfresco security analyzer.
 
 usage: alfresco_security_analyzer.py [-h] [-v] [-i] [-u URL]
 
-optional arguments:
-  -h, --help         Show this help message and exit
+optional arguments:  
+  -h, --help         Show this help message and exit  
   -v, --version      Show program version  
   -i, --insecure     Ignore security issues with HTTPS connections  
   -u URL, --url URL  URL to scan
