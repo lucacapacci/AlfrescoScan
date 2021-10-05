@@ -33,7 +33,8 @@ url_subfixes = ["alfresco/",
                 "share/page/script/",
                 "share/service/installer",
                 "share/page/user/admin/dashboard",
-                "solr4/"]
+                "solr4/",
+                "api-explorer/"]
 
 cert_url_subfixes = ["solr4/"]
 
@@ -57,7 +58,8 @@ sections = {"CMIS Web Services": ["cmis wsdl for all services", "xmlns:cmis"],
             "Web Scripts Home": ["web scripts home"],
             "Web Scripts Installer": ["web scripts installer"],
             "WebDav": ["directory listing for"],
-            "Welcome Page": ["welcome to alfresco"]}
+            "Welcome Page": ["welcome to alfresco"],
+            "REST API Explorer": [">alfresco content services rest api explorer<"]}
 
 
 def get_alfresco_version_from_xml(target_url, verify):
